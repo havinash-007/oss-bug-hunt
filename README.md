@@ -68,6 +68,7 @@ flowchart TD
 | `gh` CLI | All GitHub access | Searching, forking, PRs, issue timelines, CI status. |
 | Scheduler | Fires the PR check every 5 hours | A session-level cron job (expires after 7 days). |
 | Scoreboard | `SCOREBOARD.md`, `prs.json`, `tools/pr_status.py` | Computes merged / rejected / open and the total. |
+| Feedback watcher | `tools/pr_watch.py` | Detects new human comments, change requests, failing CI, merges and closes. Writes reply drafts; posting is explicit. |
 | Dashboard | A single static HTML page (`dashboard/index.html`) | Republished after each update. |
 
 **Why scouts and workers are separate.** Scouting is cheap and read-only, so it can be broad and wrong without harm. Writing code and opening PRs is outward-facing, so only candidates that survived vetting get a worker, and each worker gets exactly one issue. This also keeps two agents from ever editing the same files.
@@ -128,6 +129,7 @@ Workers are told to **stop and report** instead of forcing a weak PR. Several of
 - **Disclose AI assistance** in every PR, and do not tick checklist items that were not done.
 - **Be truthful about gaps.** Every PR states what was not run or verified.
 - **No pinging maintainers.** Replies happen only to review feedback, and politely.
+- **Replies are drafted automatically but posted deliberately.** `tools/pr_watch.py` finds feedback and prepares a draft, a person (or the coordinator, after reading the comment) writes the reply, and `--post` sends it. There is no fire-and-forget auto-reply, because a wrong reply on someone else's project can get a PR closed.
 - **Verify agent reports.** The coordinator confirms every claimed PR exists on GitHub before recording it.
 
 ## Where bugs come from
@@ -194,6 +196,11 @@ Requirements: Python 3.10+, the GitHub CLI (`gh`) authenticated.
 ```bash
 # PR status and score (merged +1, closed -1, open 0)
 python3 tools/pr_status.py          # reads prs.json
+
+# Watch for new maintainer feedback, failing CI, merges and closes (each reported once)
+python3 tools/pr_watch.py --baseline   # first run: mark what already exists as seen
+python3 tools/pr_watch.py --draft      # report new events and write reply skeletons to replies/
+python3 tools/pr_watch.py --post replies/<file>.md   # post a reply you have reviewed
 
 # Audits: install the target library first, then run the script
 pip install skpro

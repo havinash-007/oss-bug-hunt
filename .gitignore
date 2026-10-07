@@ -1,3 +1,5 @@
 .venv/
 __pycache__/
 *.pyc
+.pr_watch_state.json
+replies/
