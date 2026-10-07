@@ -1,6 +1,7 @@
 # Findings log
 
 ## Submitted
+**Outcomes so far:** merged: pr-agent#3966, rust-decimal#869. Closed: sphinx-needs#2103 (the maintainer folded the fix into his own PR #2113). All others open.
 All open at the time of writing; see `prs.json` and `python3 tools/pr_status.py` for live status.
 
 | PR | Fix |

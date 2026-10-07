@@ -4,7 +4,7 @@ A human-supervised, multi-agent workflow for finding real bugs in open-source pr
 
 It was built around one lesson: **browsing "good first issue" lists does not work any more.** On popular repositories other contributors (and bots) claim every easy issue within hours. What works is verifying first, then fixing: check that an issue is really unclaimed, check that the project accepts AI-assisted work, reproduce the bug, and only then write code.
 
-> **Status:** 12 pull requests opened across 9 projects in about one day. **0 merged so far**, 12 open. Merging is up to maintainers, and this repo reports the score honestly. See [`SCOREBOARD.md`](SCOREBOARD.md) for the live table.
+> **Status:** 12 pull requests opened across 9 projects in about one day. **2 merged** (pr-agent, rust-decimal), **1 closed** (sphinx-needs: the maintainer fixed the issue himself in a broader change), **9 open**. Score **+1**. Merging is up to maintainers, and this repo reports the score honestly. See [`SCOREBOARD.md`](SCOREBOARD.md) for the live table.
 
 ## Contents
 
@@ -149,7 +149,7 @@ Browsing issue trackers is saturated, so the workflow uses several sources:
 
 ## Results so far
 
-All open, none merged, as of the latest check (details and live status in [`SCOREBOARD.md`](SCOREBOARD.md)):
+As of the latest check (merged and closed PRs are marked) (details and live status in [`SCOREBOARD.md`](SCOREBOARD.md)):
 
 | Project | PRs | Fix |
 |---|---|---|
