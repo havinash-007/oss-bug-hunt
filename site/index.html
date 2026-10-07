@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Merge Watch</title>
+<meta name="description" content="Live status of open-source pull requests opened by a human-supervised multi-agent workflow.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: score hero, then a three-lane board (open / merged / closed), then the audit trail.
+   Signal orange is the single loud color; status colors are separate and semantic. */
+:root{
+  --bg:#eef1f5; --surface:#ffffff; --raised:#f7f9fb; --ink:#101826; --muted:#586577; --line:#d6dde6;
+  --signal:#e4511a; --signal-ink:#ffffff;
+  --good:#17744a; --good-bg:#d9f1e3; --warn:#9a5b00; --warn-bg:#fbebcb; --bad:#b3261e; --bad-bg:#f8dcd9; --info:#245a9e; --info-bg:#dbe8f7;
+  --display:'Bricolage Grotesque','Iowan Old Style',system-ui,sans-serif;
+  --body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c121b; --surface:#131c28; --raised:#182333; --ink:#e8eef6; --muted:#8fa0b4; --line:#243245;
+  --signal:#ff7a45; --signal-ink:#1a0a02;
+  --good:#5fd69a; --good-bg:#12362a; --warn:#f2b45a; --warn-bg:#3a2b10; --bad:#ff8f86; --bad-bg:#3f1f1d; --info:#7db4f2; --info-bg:#15293f;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c121b; --surface:#131c28; --raised:#182333; --ink:#e8eef6; --muted:#8fa0b4; --line:#243245;
+  --signal:#ff7a45; --signal-ink:#1a0a02;
+  --good:#5fd69a; --good-bg:#12362a; --warn:#f2b45a; --warn-bg:#3a2b10; --bad:#ff8f86; --bad-bg:#3f1f1d; --info:#7db4f2; --info-bg:#15293f;
+  color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--body);padding:0 max(16px,4vw) 64px}
+a{color:inherit}
+a:focus-visible,button:focus-visible{outline:2px solid var(--signal);outline-offset:3px;border-radius:6px}
+.wrap{max-width:1120px;margin:0 auto}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:18px 0;flex-wrap:wrap}
+.brand{font:700 1.05rem var(--display);letter-spacing:.01em;display:flex;align-items:center;gap:10px}
+.brand i{width:12px;height:12px;border-radius:3px;background:var(--signal);display:inline-block;transform:rotate(45deg)}
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{font:500 .82rem var(--mono);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer}
+.btn:hover{border-color:var(--signal)}
+.btn.primary{background:var(--signal);color:var(--signal-ink);border-color:var(--signal);font-weight:500}
+.live{font:.78rem var(--mono);color:var(--muted)}
+.live b{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-right:6px}
+.live.on b{background:var(--good);box-shadow:0 0 0 4px var(--good-bg)}
+.hero{display:grid;grid-template-columns:minmax(220px,340px) 1fr;gap:clamp(20px,4vw,56px);align-items:end;padding:28px 0 36px;border-bottom:1px solid var(--line)}
+.score{font:800 clamp(7rem,22vw,13rem)/.8 var(--display);letter-spacing:-.04em;color:var(--signal);font-variant-numeric:tabular-nums}
+.score small{display:block;font:500 .78rem var(--mono);color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-top:14px}
+h1{font:800 clamp(1.7rem,4vw,2.6rem)/1.08 var(--display);margin:0 0 12px;letter-spacing:-.02em;text-wrap:balance}
+.lede{margin:0 0 18px;color:var(--muted);max-width:60ch}
+.meters{display:flex;gap:10px;flex-wrap:wrap}
+.meter{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-width:112px}
+.meter b{font:500 1.5rem var(--mono);display:block;line-height:1.1;font-variant-numeric:tabular-nums}
+.meter span{font-size:.78rem;color:var(--muted)}
+h2{font:700 1.15rem var(--display);margin:0}
+.sec{padding-top:34px}
+.sec-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.sec-h p{margin:0;color:var(--muted);font-size:.88rem}
+.board{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+.lane.open{grid-column:1/-1;order:3}
+.lane.open .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+@media (max-width:860px){.hero{grid-template-columns:1fr;align-items:start}.board{grid-template-columns:1fr}.lane.open{order:3}}
+.lane{background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:12px;min-width:0}
+.lane>header{display:flex;justify-content:space-between;align-items:center;padding:4px 6px 10px;font:600 .8rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.count{background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:1px 9px;color:var(--ink)}
+.cards{display:flex;flex-direction:column;gap:10px;min-height:48px}
+.empty{color:var(--muted);font-size:.86rem;padding:10px 8px;border:1px dashed var(--line);border-radius:10px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.card .repo{font:500 .76rem var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.card h3{margin:0;font:600 .98rem/1.3 var(--body);text-wrap:pretty}
+.card h3 a{text-decoration:none}
+.card h3 a:hover{text-decoration:underline;text-decoration-color:var(--signal)}
+.card p{margin:0;font-size:.85rem;color:var(--muted)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font:500 .72rem var(--mono);padding:2px 8px;border-radius:99px;background:var(--raised);border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.chip.good{background:var(--good-bg);color:var(--good);border-color:transparent}
+.chip.warn{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+.chip.bad{background:var(--bad-bg);color:var(--bad);border-color:transparent}
+.chip.info{background:var(--info-bg);color:var(--info);border-color:transparent}
+.meta{display:flex;justify-content:space-between;gap:8px;font:.74rem var(--mono);color:var(--muted);flex-wrap:wrap}
+.audit{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+details{border-bottom:1px solid var(--line)}
+details:last-child{border-bottom:0}
+summary{cursor:pointer;list-style:none;padding:13px 16px;display:flex;justify-content:space-between;gap:12px;align-items:center;font-weight:600}
+summary::-webkit-details-marker{display:none}
+summary .chip{margin-left:auto}
+summary::after{content:"+";font:500 1.1rem var(--mono);color:var(--muted)}
+details[open] summary::after{content:"\2212"}
+details>div{padding:0 16px 14px;color:var(--muted);font-size:.9rem}
+details ul{margin:0;padding-left:1.1rem;display:flex;flex-direction:column;gap:6px}
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;counter-reset:s}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:.88rem;color:var(--muted)}
+.step b{display:block;color:var(--ink);font:600 .95rem var(--body);margin-bottom:2px}
+.step::before{counter-increment:s;content:counter(s);font:500 .72rem var(--mono);color:var(--signal-ink);background:var(--signal);border-radius:6px;padding:1px 7px;display:inline-block;margin-bottom:8px}
+footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.84rem;display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
+@media (prefers-reduced-motion:no-preference){.card{transition:transform .15s,border-color .15s}.card:hover{transform:translateY(-2px);border-color:var(--signal)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand"><i></i>Merge Watch</div>
+    <div class="tools">
+      <span class="live" id="live"><b></b><span id="liveText">snapshot</span></span>
+      <button class="btn primary" id="refresh" type="button">Refresh live</button>
+      <button class="btn" id="theme" type="button" aria-label="Toggle theme">Theme</button>
+    </div>
+  </div>
+
+  <section class="hero">
+    <div class="score" aria-live="polite"><span id="score">0</span><small>score · merged +1 · rejected −1</small></div>
+    <div>
+      <h1>Pull requests from a supervised multi-agent workflow</h1>
+      <p class="lede">Scout agents vet issues, worker agents fix one each, and every PR is verified against GitHub before it is counted. Status below is read live from the GitHub API.</p>
+      <div class="meters">
+        <div class="meter"><b id="mTotal">12</b><span>submitted</span></div>
+        <div class="meter"><b id="mOpen">12</b><span>open</span></div>
+        <div class="meter"><b id="mMerged">0</b><span>merged</span></div>
+        <div class="meter"><b id="mClosed">0</b><span>closed</span></div>
+        <div class="meter"><b id="mFeedback">1</b><span>PRs with comments</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-h"><h2>Board</h2><p>Open PRs wait on maintainers. Nothing is counted until it is merged or closed.</p></div>
+    <div class="board">
+      <div class="lane open"><header>Open, waiting on maintainers <span class="count" id="cOpen">0</span></header><div class="cards" id="laneOpen"></div></div>
+      <div class="lane"><header>Merged <span class="count" id="cMerged">0</span></header><div class="cards" id="laneMerged"></div></div>
+      <div class="lane"><header>Closed <span class="count" id="cClosed">0</span></header><div class="cards" id="laneClosed"></div></div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-h"><h2>How it works</h2><p>One verified PR per issue, never filler.</p></div>
+    <div class="flow">
+      <div class="step"><b>Scout</b>Finds unclaimed bugs, reads each repo's AI policy, flags DCO and CLA.</div>
+      <div class="step"><b>Worker</b>Re-checks the issue, reproduces the bug, writes a failing test and the smallest fix.</div>
+      <div class="step"><b>Verify</b>The coordinator confirms the PR exists and reads CI and review feedback.</div>
+      <div class="step"><b>Reply</b>A watcher drafts replies to maintainers. A reply is read, then posted.</div>
+      <div class="step"><b>Score</b>Re-checked every five hours. Merged +1, rejected −1.</div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-h"><h2>Checked and skipped</h2><p>Most of the work is deciding not to open a PR.</p></div>
+    <div class="audit">
+      <details><summary>Projects that restrict AI-written PRs <span class="chip warn">not submitted</span></summary><div><ul>
+        <li>scikit-image: a real bug in <code>max_tree</code>, but the policy bans AI-written code and PR text.</li>
+        <li>django-modern-rest: forbids autonomous agent PRs and requires human-written PR text.</li>
+        <li>networkx, thanos, OpenTelemetry: AI-generated contributions banned or restricted.</li>
+      </ul></div></details>
+      <details><summary>Issues that were already claimed <span class="chip">skipped</span></summary><div><ul>
+        <li>sktime: 47 open bugs, every real one already had a PR or a claim.</li>
+        <li>Open Food Facts: three issues each had a contributor claim and a claim-first rule.</li>
+        <li>Data and ML libraries: bugs had PRs within days, many from other AI-assisted contributors.</li>
+      </ul></div></details>
+      <details><summary>Needs the owner personally <span class="chip info">held</span></summary><div><ul>
+        <li>DCO sign-off requires the contributor's legal name, and a CLA needs their own signature.</li>
+        <li>opendal and gravitino want a human to review the PR text before it is submitted.</li>
+        <li>kargo and openinference need a DCO name and a CLA respectively.</li>
+      </ul></div></details>
+      <details><summary>Clean after full test runs <span class="chip good">no bug</span></summary><div><ul>
+        <li>humanize, tabulate, click, jinja and more-itertools pass their suites on Python 3.14.</li>
+        <li>sktime metrics, splitters and datatypes match reference formulas and invariants.</li>
+      </ul></div></details>
+    </div>
+  </section>
+
+  <footer>
+    <span>Source and agent prompts: <a href="https://github.com/havinash-007/oss-bug-hunt">github.com/havinash-007/oss-bug-hunt</a></span>
+    <span id="stamp">Snapshot 7 Oct 2026</span>
+  </footer>
+</div>
+
+<script>
+/* Embedded snapshot, used when the GitHub API is unreachable or rate limited.
+   ci: 'green' | 'pending' (not started, usually awaiting maintainer approval). */
+var PRS = [
+ {repo:"sktime/skpro", n:1200, title:"Fix _approx_derivative missing division by step size", note:"cdf-derived pdf was 10 million times too small", ci:"green", org:"sktime"},
+ {repo:"Kludex/starlette", n:3643, title:"Keep a leading // path out of the URL authority", note:"closes an open-redirect path (#3579)", ci:"green", org:"encode"},
+ {repo:"The-PR-Agent/pr-agent", n:3966, title:"Extend zero-length diff hunks from the right line", note:"extend_patch mis-numbered -U0 hunks", ci:"green", org:"pr-agent"},
+ {repo:"useblocks/sphinx-needs", n:2103, title:"Warn on needservice naming an unregistered service", note:"was a raw traceback (#2101)", ci:"green", org:"sphinx-needs"},
+ {repo:"useblocks/sphinx-needs", n:2104, title:"Insert test-report content as text, not a list repr", note:"closes #2051", ci:"green", org:"sphinx-needs"},
+ {repo:"useblocks/sphinx-needs", n:2105, title:"Fix tr_link crash on needs whose option is None", note:"closes #1949", ci:"green", org:"sphinx-needs"},
+ {repo:"vitejs/vite-plugin-vue", n:856, title:"Respect Vite's tsconfig option for SFC TypeScript", note:"closes #852", ci:"green", org:"vite"},
+ {repo:"paupino/rust-decimal", n:869, title:"Support 128-bit integers when deserializing Decimal", note:"closes #855", ci:"pending", org:"rust-decimal"},
+ {repo:"paupino/rust-decimal", n:870, title:"Handle negative zero in sqrt, ln and log10", note:"closes #850", ci:"pending", org:"rust-decimal"},
+ {repo:"Rel1cx/eslint-react", n:2010, title:"set-state-in-effect false positive for callback refs", note:"closes #2000", ci:"green", org:"eslint-react"},
+ {repo:"genshinsim/gcsim", n:3206, title:"Sample on run without waiting for the run to finish", note:"maintainer prefers his own refactor", ci:"pending", org:"gcsim", human:1},
+ {repo:"oras-project/oras", n:2227, title:"Allow fetch-config --output to special files", note:"CNCF project, DCO signed (#2224, #2226)", ci:"green", org:"CNCF"}
+];
+var state = PRS.map(function(p){return Object.assign({}, p, {status:"open", comments:p.human||0, updated:null});});
+
+function $(id){return document.getElementById(id);}
+function ago(iso){
+  if(!iso) return "";
+  var s=(Date.now()-new Date(iso).getTime())/1000;
+  if(s<3600) return Math.max(1,Math.round(s/60))+"m ago";
+  if(s<86400) return Math.round(s/3600)+"h ago";
+  return Math.round(s/86400)+"d ago";
+}
+function esc(t){return String(t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+
+function card(p){
+  var ci = p.ci==="green" ? '<span class="chip good">CI green</span>' : '<span class="chip warn">CI waiting</span>';
+  var human = p.comments>0 ? '<span class="chip info">'+p.comments+' new comment'+(p.comments>1?"s":"")+'</span>' : '<span class="chip">no review yet</span>';
+  var st = p.status==="merged" ? '<span class="chip good">merged +1</span>' : p.status==="closed" ? '<span class="chip bad">closed −1</span>' : "";
+  return '<article class="card"><div class="repo">'+esc(p.repo)+' #'+p.n+'</div>'+
+    '<h3><a href="https://github.com/'+p.repo+'/pull/'+p.n+'" target="_blank" rel="noopener">'+esc(p.title)+'</a></h3>'+
+    '<p>'+esc(p.note)+'</p><div class="chips">'+st+ci+human+'</div>'+
+    '<div class="meta"><span>'+esc(p.org)+'</span><span>'+(p.updated?'updated '+ago(p.updated):'')+'</span></div></article>';
+}
+
+function render(){
+  var lanes={open:[],merged:[],closed:[]}, feedback=0;
+  state.forEach(function(p){lanes[p.status].push(p); feedback+=p.comments>0?1:0;});
+  var score=lanes.merged.length-lanes.closed.length;
+  $("score").textContent=(score>0?"+":"")+score;
+  $("mTotal").textContent=state.length; $("mOpen").textContent=lanes.open.length;
+  $("mMerged").textContent=lanes.merged.length; $("mClosed").textContent=lanes.closed.length;
+  $("mFeedback").textContent=feedback;
+  [["open","laneOpen","cOpen"],["merged","laneMerged","cMerged"],["closed","laneClosed","cClosed"]].forEach(function(l){
+    $(l[1]).innerHTML = lanes[l[0]].length ? lanes[l[0]].map(card).join("") : '<div class="empty">'+(l[0]==="merged"?"Nothing merged yet.":l[0]==="closed"?"Nothing closed.":"No open PRs.")+'</div>';
+    $(l[2]).textContent=lanes[l[0]].length;
+  });
+}
+
+function setLive(on,text){var el=$("live"); el.className="live"+(on?" on":""); $("liveText").textContent=text;}
+
+function cached(){
+  try{var c=JSON.parse(localStorage.getItem("mw-cache")||"null"); if(c&&Date.now()-c.t<600000) return c.d;}catch(e){}
+  return null;
+}
+function save(d){try{localStorage.setItem("mw-cache",JSON.stringify({t:Date.now(),d:d}));}catch(e){}}
+
+function load(force){
+  var c=!force&&cached();
+  if(c){apply(c,"cached");return;}
+  setLive(false,"loading…");
+  Promise.all(PRS.map(function(p){
+    return fetch("https://api.github.com/repos/"+p.repo+"/pulls/"+p.n,{headers:{Accept:"application/vnd.github+json"}})
+      .then(function(r){if(!r.ok) throw new Error(r.status); return r.json();})
+      .then(function(j){return {n:p.n,repo:p.repo,status:j.merged_at?"merged":(j.state==="closed"?"closed":"open"),comments:(j.comments||0)+(j.review_comments||0),updated:j.updated_at};});
+  })).then(function(d){save(d);apply(d,"live");})
+    .catch(function(){setLive(false,"snapshot (GitHub rate limit or offline)");render();});
+}
+function apply(d,label){
+  d.forEach(function(x){
+    state.forEach(function(p){ if(p.repo===x.repo&&p.n===x.n){p.status=x.status;p.updated=x.updated;
+      // GitHub counts bot comments too, so count only a rise above the baseline taken at deploy time
+      p.comments=Math.max(0,x.comments-(p.baseline||0))+(p.human||0);} });
+  });
+  setLive(true,label+" · "+new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}));
+  render();
+}
+
+$("refresh").addEventListener("click",function(){load(true);});
+$("theme").addEventListener("click",function(){
+  var cur=document.documentElement.getAttribute("data-theme");
+  var next=cur==="dark"?"light":cur==="light"?"dark":(matchMedia("(prefers-color-scheme: dark)").matches?"light":"dark");
+  document.documentElement.setAttribute("data-theme",next);
+  try{localStorage.setItem("mw-theme",next);}catch(e){}
+});
+try{var t=localStorage.getItem("mw-theme"); if(t) document.documentElement.setAttribute("data-theme",t);}catch(e){}
+
+/* GitHub counts bot comments (CI, coverage, review bots) in "comments". Baselines measured at deploy
+   time, so the board only shows comments added after that as new feedback. */
+var BASE={"sktime/skpro#1200": 0, "Kludex/starlette#3643": 3, "The-PR-Agent/pr-agent#3966": 3, "useblocks/sphinx-needs#2103": 0, "useblocks/sphinx-needs#2104": 0, "vitejs/vite-plugin-vue#856": 0, "paupino/rust-decimal#869": 0, "useblocks/sphinx-needs#2105": 0, "paupino/rust-decimal#870": 0, "genshinsim/gcsim#3206": 2, "Rel1cx/eslint-react#2010": 2, "oras-project/oras#2227": 0};
+state.forEach(function(p){p.baseline=BASE[p.repo+"#"+p.n]||0;});
+render(); load(false);
+setInterval(function(){load(true);},600000);
+</script>
+</body>
+</html>
