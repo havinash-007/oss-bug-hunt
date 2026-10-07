@@ -17,3 +17,9 @@ First result: [sktime/skpro#1200](https://github.com/sktime/skpro/pull/1200), a 
 numerical derivative that was missing a division by the step size.
 
 See `FINDINGS.md` for the log of what was checked and why each lead was kept or dropped.
+
+## Agent workflow
+
+A scout agent vets candidate issues (`agents/scout_prompt.md`), then one worker agent per issue
+fixes and submits a PR (`agents/worker_prompt.md`), under the rules in `agents/RULES.md`.
+`dashboard/dashboard.html` is the status page, and `SCOREBOARD.md` the latest PR scores.
